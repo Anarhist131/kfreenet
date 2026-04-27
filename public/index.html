@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1a1b26">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>К.ФриРунет 2.0</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="data:,"> <!-- Пустой favicon, чтобы не было ошибок -->
+</head>
+<body>
+
+  <!-- ========== ЭКРАН АВТОРИЗАЦИИ ========== -->
+  <div id="authOverlay" class="modal">
+    <div class="modal-content auth-form">
+      <h1>К. ФриРунет 2.0</h1>
+      <div class="auth-tabs">
+        <button id="tabLogin" class="tab active">Вход</button>
+        <button id="tabRegister" class="tab">Регистрация</button>
+      </div>
+      <form id="authForm">
+        <input type="text" id="authLogin" placeholder="Логин" required autocomplete="username">
+        <input type="password" id="authPassword" placeholder="Пароль" required autocomplete="current-password">
+        <div id="registerNickField" class="hidden">
+          <input type="text" id="authNick" placeholder="Никнейм (необязательно)">
+        </div>
+        <button type="submit" id="authSubmit">Войти</button>
+      </form>
+      <div id="authError" class="error"></div>
+    </div>
+  </div>
+
+  <!-- ========== ОСНОВНОЙ ИНТЕРФЕЙС (скрыт до входа) ========== -->
+  <div id="mainApp" class="hidden">
+    <!-- Верхняя панель -->
+    <header class="top-bar">
+      <div class="logo">К. ФриРунет 2.0</div>
+      <nav class="top-actions">
+        <button id="btnCreateRoom">Создать чат</button>
+        <button id="btnFind">Найти чат</button>
+        <button id="btnDownload">Скачать txt</button>
+        <button id="btnSettings">Настройки аккаунта</button>
+        <button id="btnList">Список чатов и юзеров</button>
+      </nav>
+    </header>
+
+    <!-- Основной контент: чат + панель участников -->
+    <main class="main-container">
+      <section class="chat-area">
+        <div class="chat-header" id="chatHeader">Общий чат</div>
+        <div class="messages" id="messagesContainer"></div>
+        <div class="input-area">
+          <input type="text" id="messageInput" placeholder="Введите сообщение..." autocomplete="off">
+          <button id="btnSend">Отправить</button>
+        </div>
+      </section>
+
+      <aside class="participants-panel" id="participantsPanel">
+        <h3>Участники</h3>
+        <ul id="participantsList"></ul>
+        <div class="sub-btn-container" id="subBtnContainer"></div>
+      </aside>
+    </main>
+
+    <!-- ========== МОДАЛЬНЫЕ ОКНА (внутри mainApp) ========== -->
+
+    <!-- 1. Создать чат -->
+    <div class="modal hidden" id="modalCreateRoom">
+      <div class="modal-content">
+        <h2>Создать новый чат</h2>
+        <input type="text" id="inputRoomName" placeholder="Название чата">
+        <div class="modal-actions">
+          <button id="btnCreateRoomSubmit">Создать</button>
+          <button class="modal-close" data-modal="modalCreateRoom">Отмена</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 2. Найти чат / пользователя -->
+    <div class="modal hidden" id="modalFind">
+      <div class="modal-content">
+        <h2>Найти чат или пользователя</h2>
+        <input type="text" id="inputFindId" placeholder="Введите ID (пользователя или комнаты)">
+        <button id="btnFindSubmit">Найти</button>
+        <div class="recent-searches">
+          <h4>Последние 15 поисков</h4>
+          <ul id="recentSearchesList"></ul>
+        </div>
+        <button class="modal-close" data-modal="modalFind">Закрыть</button>
+      </div>
+    </div>
+
+    <!-- 3. Настройки аккаунта -->
+    <div class="modal hidden" id="modalSettings">
+      <div class="modal-content">
+        <h2>Настройки аккаунта</h2>
+        <div class="field">
+          <label>Ваш ID: <strong id="displayUserId"></strong></label>
+        </div>
+        <div class="field">
+          <label>Никнейм: <input type="text" id="inputNickname"></label>
+        </div>
+        <div class="field">
+          <label>Описание (статус): <input type="text" id="inputDescription"></label>
+        </div>
+        <div class="field">
+          <label>Цвет ника:</label>
+          <div class="color-palette" id="colorPalette"></div>
+        </div>
+        <div class="field">
+          <label>Аватар:</label>
+          <input type="file" id="avatarFile" accept="image/*">
+          <img id="avatarPreview" class="avatar-preview" src="" alt="Аватар">
+        </div>
+        <div class="field">
+          <label>Фон чата:</label>
+          <input type="file" id="bgFile" accept="image/*">
+        </div>
+        <div class="field">
+          <label>Тема:</label>
+          <select id="themeSelect">
+            <option value="dark">Тёмная (DeepSeek)</option>
+            <option value="light">Светлая</option>
+          </select>
+        </div>
+        <div class="modal-actions">
+          <button id="btnSaveProfile">Сохранить</button>
+          <button class="modal-close" data-modal="modalSettings">Закрыть</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. Список чатов и юзеров -->
+    <div class="modal hidden" id="modalList">
+      <div class="modal-content">
+        <h2>Ваши чаты и контакты</h2>
+        <div class="tabs">
+          <button class="tab active" data-tab="roomsTab">Чаты</button>
+          <button class="tab" data-tab="contactsTab">Юзеры</button>
+        </div>
+        <div class="tab-content" id="roomsTab">
+          <ul id="roomsList"></ul>
+        </div>
+        <div class="tab-content hidden" id="contactsTab">
+          <ul id="contactsList"></ul>
+        </div>
+        <button class="modal-close" data-modal="modalList">Закрыть</button>
+      </div>
+    </div>
+
+    <!-- 5. Профиль пользователя (по клику на ник) -->
+    <div class="modal hidden" id="modalProfile">
+      <div class="modal-content">
+        <div class="profile-view" id="profileContent"></div>
+        <button class="modal-close" data-modal="modalProfile">Закрыть</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Скрипты -->
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="client.js"></script>
+</body>
+</html>
