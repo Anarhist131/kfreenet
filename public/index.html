@@ -1,20 +1,17 @@
 <!DOCTYPE html>
 <html lang="ru">
 <head>
-  <link rel="manifest" href="/manifest.json">
-  <meta name="theme-color" content="#1a1b26">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-  <title>К.ФриРунет 2.0</title>
+  <title>Криста 3.0 (Мессенджер)</title>
+  <link rel="manifest" href="/manifest.json">
   <link rel="stylesheet" href="style.css">
-  <link rel="icon" href="data:,"> <!-- Пустой favicon, чтобы не было ошибок -->
 </head>
 <body>
-
-  <!-- ========== ЭКРАН АВТОРИЗАЦИИ ========== -->
+  <!-- Экран авторизации -->
   <div id="authOverlay" class="modal">
-    <div class="modal-content auth-form">
-      <h1>К. ФриРунет 2.0</h1>
+    <div class="modal-content glass-card">
+      <h1>Криста 3.0</h1>
       <div class="auth-tabs">
         <button id="tabLogin" class="tab active">Вход</button>
         <button id="tabRegister" class="tab">Регистрация</button>
@@ -25,85 +22,116 @@
         <div id="registerNickField" class="hidden">
           <input type="text" id="authNick" placeholder="Никнейм (необязательно)">
         </div>
-        <button type="submit" id="authSubmit">Войти</button>
+        <button type="submit" id="authSubmit" class="glass-btn">Войти</button>
       </form>
       <div id="authError" class="error"></div>
     </div>
   </div>
 
-  <!-- ========== ОСНОВНОЙ ИНТЕРФЕЙС (скрыт до входа) ========== -->
+  <!-- Основной интерфейс (скрыт до авторизации) -->
   <div id="mainApp" class="hidden">
     <!-- Верхняя панель -->
-    <header class="top-bar">
-      <div class="logo">К. ФриРунет 2.0</div>
+    <header class="top-bar glass-panel">
+      <div class="logo">Криста 3.0</div>
       <nav class="top-actions">
-        <button id="btnCreateRoom">Создать чат</button>
-        <button id="btnFind">Найти чат</button>
-        <button id="btnDownload">Скачать txt</button>
-        <button id="btnSettings">Настройки аккаунта</button>
-        <button id="btnList">Список чатов и юзеров</button>
+        <button id="btnCreateRoom" class="glass-btn">Создать чат</button>
+        <button id="btnFind" class="glass-btn">Найти чат</button>
+        <button id="btnDownload" class="glass-btn">Скачать txt</button>
+        <button id="btnSettings" class="glass-btn">Настройки</button>
+        <button id="btnList" class="glass-btn">Список чатов</button>
       </nav>
     </header>
 
-    <!-- Основной контент: чат + панель участников -->
     <main class="main-container">
+      <!-- Область чата -->
       <section class="chat-area">
-        <div class="chat-header" id="chatHeader">Общий чат</div>
-        <div class="messages" id="messagesContainer"></div>
-        <div class="input-area">
-          <input type="text" id="messageInput" placeholder="Введите сообщение..." autocomplete="off">
-          <button id="btnSend">Отправить</button>
+        <div class="chat-header glass-panel" id="chatHeader">
+          <span id="chatTitle">Общий чат</span>
+          <span id="chatIdDisplay" class="chat-id">[general]</span>
         </div>
+        <div class="messages-container glass-scroll" id="messagesContainer">
+          <!-- Поиск по истории (скрыт) -->
+          <div class="search-bar hidden" id="searchBar">
+            <input type="text" id="searchInput" placeholder="Поиск в чате...">
+            <button id="searchPrev" class="glass-btn-sm">↑</button>
+            <button id="searchNext" class="glass-btn-sm">↓</button>
+            <button id="closeSearch" class="glass-btn-sm">✕</button>
+          </div>
+          <!-- Сообщения будут здесь -->
+        </div>
+        <!-- Индикатор печати -->
+        <div class="typing-indicator hidden" id="typingIndicator">Печатает...</div>
+        <!-- Поле ввода -->
+        <div class="input-area glass-panel">
+          <button id="emojiBtn" class="glass-btn-sm">😊</button>
+          <input type="text" id="messageInput" placeholder="Сообщение..." autocomplete="off">
+          <button id="btnSend" class="glass-btn">Отправить</button>
+        </div>
+        <!-- Панель эмодзи -->
+        <div class="emoji-picker hidden" id="emojiPicker"></div>
       </section>
 
-      <aside class="participants-panel" id="participantsPanel">
+      <!-- Панель участников -->
+      <aside class="participants-panel glass-panel" id="participantsPanel">
         <h3>Участники</h3>
         <ul id="participantsList"></ul>
         <div class="sub-btn-container" id="subBtnContainer"></div>
       </aside>
     </main>
 
-    <!-- ========== МОДАЛЬНЫЕ ОКНА (внутри mainApp) ========== -->
+    <!-- Контекстное меню сообщения -->
+    <div class="context-menu hidden" id="contextMenu">
+      <button data-action="reply">Ответить</button>
+      <button data-action="edit">Редактировать</button>
+      <button data-action="delete">Удалить</button>
+      <button data-action="react">Реакции</button>
+      <button data-action="copy">Копировать</button>
+    </div>
 
-    <!-- 1. Создать чат -->
+    <!-- Панель реакций -->
+    <div class="reaction-picker hidden" id="reactionPicker">
+      <span class="reaction-emoji">👍</span>
+      <span class="reaction-emoji">❤️</span>
+      <span class="reaction-emoji">😂</span>
+      <span class="reaction-emoji">😮</span>
+      <span class="reaction-emoji">😢</span>
+      <span class="reaction-emoji">😡</span>
+    </div>
+
+    <!-- Модальные окна -->
+    <!-- Создать чат -->
     <div class="modal hidden" id="modalCreateRoom">
-      <div class="modal-content">
+      <div class="modal-content glass-card">
         <h2>Создать новый чат</h2>
         <input type="text" id="inputRoomName" placeholder="Название чата">
         <div class="modal-actions">
-          <button id="btnCreateRoomSubmit">Создать</button>
-          <button class="modal-close" data-modal="modalCreateRoom">Отмена</button>
+          <button id="btnCreateRoomSubmit" class="glass-btn">Создать</button>
+          <button class="modal-close glass-btn" data-modal="modalCreateRoom">Отмена</button>
         </div>
       </div>
     </div>
 
-    <!-- 2. Найти чат / пользователя -->
+    <!-- Найти чат / пользователя -->
     <div class="modal hidden" id="modalFind">
-      <div class="modal-content">
+      <div class="modal-content glass-card">
         <h2>Найти чат или пользователя</h2>
-        <input type="text" id="inputFindId" placeholder="Введите ID (пользователя или комнаты)">
-        <button id="btnFindSubmit">Найти</button>
+        <input type="text" id="inputFindId" placeholder="Введите ID">
+        <button id="btnFindSubmit" class="glass-btn">Найти</button>
         <div class="recent-searches">
-          <h4>Последние 15 поисков</h4>
+          <h4>Последние поиски</h4>
           <ul id="recentSearchesList"></ul>
         </div>
-        <button class="modal-close" data-modal="modalFind">Закрыть</button>
+        <button class="modal-close glass-btn" data-modal="modalFind">Закрыть</button>
       </div>
     </div>
 
-    <!-- 3. Настройки аккаунта -->
+    <!-- Настройки -->
     <div class="modal hidden" id="modalSettings">
-      <div class="modal-content">
+      <div class="modal-content glass-card">
         <h2>Настройки аккаунта</h2>
-        <div class="field">
-          <label>Ваш ID: <strong id="displayUserId"></strong></label>
-        </div>
-        <div class="field">
-          <label>Никнейм: <input type="text" id="inputNickname"></label>
-        </div>
-        <div class="field">
-          <label>Описание (статус): <input type="text" id="inputDescription"></label>
-        </div>
+        <div class="field"><label>Ваш ID: <strong id="displayUserId"></strong></label></div>
+        <div class="field"><label>Никнейм: <input type="text" id="inputNickname"></label></div>
+        <div class="field"><label>Описание: <input type="text" id="inputDescription"></label></div>
         <div class="field">
           <label>Цвет ника:</label>
           <div class="color-palette" id="colorPalette"></div>
@@ -114,52 +142,47 @@
           <img id="avatarPreview" class="avatar-preview" src="" alt="Аватар">
         </div>
         <div class="field">
-          <label>Фон чата:</label>
+          <label>Фон:</label>
           <input type="file" id="bgFile" accept="image/*">
         </div>
         <div class="field">
           <label>Тема:</label>
           <select id="themeSelect">
-            <option value="dark">Тёмная (DeepSeek)</option>
+            <option value="dark">Тёмная</option>
             <option value="light">Светлая</option>
           </select>
         </div>
         <div class="modal-actions">
-          <button id="btnSaveProfile">Сохранить</button>
-          <button class="modal-close" data-modal="modalSettings">Закрыть</button>
+          <button id="btnSaveProfile" class="glass-btn">Сохранить</button>
+          <button class="modal-close glass-btn" data-modal="modalSettings">Закрыть</button>
         </div>
       </div>
     </div>
 
-    <!-- 4. Список чатов и юзеров -->
+    <!-- Список чатов и контактов -->
     <div class="modal hidden" id="modalList">
-      <div class="modal-content">
+      <div class="modal-content glass-card">
         <h2>Ваши чаты и контакты</h2>
         <div class="tabs">
           <button class="tab active" data-tab="roomsTab">Чаты</button>
           <button class="tab" data-tab="contactsTab">Юзеры</button>
         </div>
-        <div class="tab-content" id="roomsTab">
-          <ul id="roomsList"></ul>
-        </div>
-        <div class="tab-content hidden" id="contactsTab">
-          <ul id="contactsList"></ul>
-        </div>
-        <button class="modal-close" data-modal="modalList">Закрыть</button>
+        <div class="tab-content" id="roomsTab"><ul id="roomsList"></ul></div>
+        <div class="tab-content hidden" id="contactsTab"><ul id="contactsList"></ul></div>
+        <button class="modal-close glass-btn" data-modal="modalList">Закрыть</button>
       </div>
     </div>
 
-    <!-- 5. Профиль пользователя (по клику на ник) -->
+    <!-- Профиль пользователя -->
     <div class="modal hidden" id="modalProfile">
-      <div class="modal-content">
+      <div class="modal-content glass-card">
         <div class="profile-view" id="profileContent"></div>
-        <button class="modal-close" data-modal="modalProfile">Закрыть</button>
+        <button class="modal-close glass-btn" data-modal="modalProfile">Закрыть</button>
       </div>
     </div>
   </div>
 
-  <!-- Скрипты -->
   <script src="/socket.io/socket.io.js"></script>
   <script src="client.js"></script>
 </body>
-</html>
+            </html>
