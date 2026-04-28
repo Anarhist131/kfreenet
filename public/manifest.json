@@ -1,11 +1,31 @@
 {
-  "name": "К.ФриРунет 2.0",
-  "short_name": "ФриРунет",
-  "description": "Мессенджер для текстового общения",
+  "name": "Криста 3.0 (Мессенджер)",
+  "short_name": "Криста 3.0",
+  "description": "Современный мессенджер для текстового общения",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#1a1b26",
-  "theme_color": "#1a1b26",
+  "background_color": "#0f0f1a",
+  "theme_color": "#6c8cff",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+} {
+  "name": "Криста 3.0 (Мессенджер)",
+  "short_name": "Криста 3.0",
+  "description": "Современный мессенджер для текстового общения",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f0f1a",
+  "theme_color": "#6c8cff",
   "icons": [
     {
       "src": "/icons/icon-192.png",
