@@ -1,7 +1,6 @@
-// sw.js — Service Worker для К.ФриРунет 2.0
-
-const CACHE_NAME = 'kfr-cache-v2';
-const ASSETS_TO_CACHE = [
+// sw.js — Service Worker для Криста 3.0
+const CACHE_NAME = 'krista-cache-v2';
+const ASSETS = [
   '/',
   '/index.html',
   '/style.css',
@@ -11,36 +10,25 @@ const ASSETS_TO_CACHE = [
   '/sounds/subscribe.mp3',
   '/sounds/unsubscribe.mp3',
   '/icons/icon-192.png',
-  '/icons/icon-512.png',
-  '/socket.io/socket.io.js'   // если доступен
+  '/icons/icon-512.png'
 ];
 
-// Установка: кешируем основные файлы
-self.addEventListener('install', (event) => {
+self.addEventListener('install', event => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE).catch(err => console.warn('Кеширование не удалось', err));
-    })
+    caches.open(CACHE_NAME).then(cache => cache.addAll(ASSETS))
   );
 });
 
-// Активация: удаляем старые кеши
-self.addEventListener('activate', (event) => {
+self.addEventListener('activate', event => {
   event.waitUntil(
-    caches.keys().then((cacheNames) => {
-      return Promise.all(
-        cacheNames.filter(name => name !== CACHE_NAME).map(name => caches.delete(name))
-      );
-    })
+    caches.keys().then(keys => Promise.all(
+      keys.filter(key => key !== CACHE_NAME).map(key => caches.delete(key))
+    ))
   );
 });
 
-// Перехват запросов: сначала кеш, потом сеть
-self.addEventListener('fetch', (event) => {
+self.addEventListener('fetch', event => {
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      // Возвращаем кеш, если есть, иначе делаем запрос в сеть
-      return cachedResponse || fetch(event.request);
-    })
+    caches.match(event.request).then(cached => cached || fetch(event.request))
   );
 });
