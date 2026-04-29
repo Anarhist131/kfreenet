@@ -1,4 +1,4 @@
-// sw.js — Service Worker для Криста 3.0
+// sw.js — Service Worker для Кристы 3.0
 const CACHE_NAME = 'krista-v3';
 const ASSETS = [
   '/',
@@ -31,7 +31,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Перехват запросов: кеш, потом сеть
+// Перехват запросов: сначала кеш, потом сеть
 self.addEventListener('fetch', (event) => {
   event.respondWith(
     caches.match(event.request).then((cached) => {
