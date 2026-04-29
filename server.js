@@ -465,9 +465,72 @@ io.on('connection', (socket) => {
 
 // ========== ОБРАБОТКА КОМАНД ==========
 async function handleCommand(room, userId, cmd, socket) {
-  // Реализация команд /namechat, /op, /Whatid
-  // (аналогично предыдущим версиям, оставлю для краткости, но ты можешь вставить готовый блок из прошлых сообщений)
-}
+  const parts = cmd.split(' ');
+  const command = parts[0].toLowerCase();
+  const args = parts.slice(1).join(' ');
+
+  const sendSystem = async (text) => {
+    const sysMsg = {
+      time: getCurrentTime(),
+      user: 'System',
+      text,
+      color: '#ffaa00'
+    };
+    io.to(room.id).emit('newMessage', sysMsg);
+    room.messages.push(sysMsg);
+    if (room.messages.length > 500) room.messages = room.messages.slice(-500);
+    await room.save();
+  };
+
+  if (command === '/namechat') {
+    if (!room.admins.includes(userId) && room.creator !== userId) {
+      await sendSystem('Ошибка: Только администратор или создатель может менять название.');
+      return;
+    }
+    const newName = args.trim();
+    if (!newName) {
+      await sendSystem('Использование: /namechat [Новое название]');
+      return;
+    }
+    room.name = newName;
+    await room.save();
+    io.to(room.id).emit('roomNameChanged', newName);
+    await sendSystem(`Название чата изменено на: ${newName}`);
+  }
+  else if (command === '/op') {
+    if (room.creator !== userId) {
+      await sendSystem('Ошибка: Только создатель может назначать администраторов.');
+      return;
+    }
+    const targetNick = args.trim();
+    if (!targetNick) {
+      await sendSystem('Использование: /op [Никнейм]');
+      return;
+    }
+    const targetUser = await Profile.findOne({ nick: targetNick, id: { $in: room.participants } });
+    if (!targetUser) {
+      await sendSystem(`Участник с ником ${targetNick} не найден в этом чате.`);
+      return;
+    }
+    if (room.admins.includes(targetUser.id)) {
+      await sendSystem(`${targetNick} уже администратор.`);
+      return;
+    }
+    room.admins.push(targetUser.id);
+    await room.save();
+    await sendSystem(`${targetNick} теперь администратор.`);
+  }
+  else if (command === '/whatid') {
+    const list = await Promise.all(room.participants.map(async p => {
+      const profile = await Profile.findOne({ id: p });
+      return `${profile ? profile.nick : 'Unknown'} [${p}]`;
+    }));
+    await sendSystem(`Чат: ${room.name} [${room.id}]\nУчастники: ${list.join(', ')}`);
+  }
+  else {
+    await sendSystem('Неизвестная команда. Доступны: /namechat, /op, /Whatid');
+  }
+    }
 
 // ========== ЗАПУСК ==========
 const PORT = process.env.PORT || 3000;
