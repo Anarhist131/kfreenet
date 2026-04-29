@@ -19,7 +19,7 @@ const server = http.createServer(app);
 const io = new Server(server);
 app.use(express.static(path.join(__dirname, 'public')));
 
-// ========== MULTER (аватарки и фоны) ==========
+// ========== MULTER ==========
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const folder = file.fieldname === 'avatar' ? 'public/avatars' : 'public/backgrounds';
@@ -32,12 +32,12 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage, limits: { fileSize: 2 * 1024 * 1024 } });
 
-// ========== МОДЕЛИ MONGOOSE ==========
+// ========== МОДЕЛИ ==========
 const profileSchema = new mongoose.Schema({
   id: String,
   login: { type: String, unique: true },
   passwordHash: String,
-  token: String,            // токен для автовхода
+  token: String,
   nick: String,
   color: { type: String, default: '#7aa2f7' },
   description: { type: String, default: '' },
@@ -65,7 +65,7 @@ const roomSchema = new mongoose.Schema({
     text: String,
     replyTo: String,
     edited: { type: Boolean, default: false },
-    reactions: { type: Map, of: [String] } // эмодзи -> массив userId
+    reactions: { type: Map, of: [String] }
   }]
 });
 const Room = mongoose.model('Room', roomSchema);
@@ -173,49 +173,64 @@ io.on('connection', (socket) => {
 
   // --- РЕГИСТРАЦИЯ ---
   socket.on('register', async (data) => {
-    const { login, password, nick } = data;
-    if (!login || !password) return socket.emit('authError', 'Логин и пароль обязательны');
-    if (await Profile.findOne({ login })) return socket.emit('authError', 'Пользователь уже существует');
-    const userId = await generateUserId();
-    const hash = await bcrypt.hash(password, 10);
-    const token = generateToken();
-    const profile = await Profile.create({
-      id: userId,
-      login,
-      passwordHash: hash,
-      token,
-      nick: nick || 'User' + userId,
-      lastSeen: new Date()
-    });
-    socket.userId = userId;
-    socket.emit('authSuccess', profile.toObject());
-    joinRoom(socket, 'general');
+    try {
+      const { login, password, nick } = data;
+      if (!login || !password) return socket.emit('authError', 'Логин и пароль обязательны');
+      if (await Profile.findOne({ login })) return socket.emit('authError', 'Пользователь уже существует');
+      const userId = await generateUserId();
+      const hash = await bcrypt.hash(password, 10);
+      const token = generateToken();
+      const profile = await Profile.create({
+        id: userId,
+        login,
+        passwordHash: hash,
+        token,
+        nick: nick || 'User' + userId,
+        lastSeen: new Date()
+      });
+      socket.userId = userId;
+      socket.emit('authSuccess', profile.toObject());
+      joinRoom(socket, 'general');
+    } catch (err) {
+      console.error('Ошибка регистрации:', err);
+      socket.emit('authError', 'Ошибка сервера');
+    }
   });
 
   // --- ВХОД ---
   socket.on('login', async (data) => {
-    const { login, password } = data;
-    const profile = await Profile.findOne({ login });
-    if (!profile) return socket.emit('authError', 'Неверный логин или пароль');
-    const valid = await bcrypt.compare(password, profile.passwordHash);
-    if (!valid) return socket.emit('authError', 'Неверный логин или пароль');
-    profile.token = generateToken();
-    profile.lastSeen = new Date();
-    await profile.save();
-    socket.userId = profile.id;
-    socket.emit('authSuccess', profile.toObject());
-    joinRoom(socket, 'general');
+    try {
+      const { login, password } = data;
+      const profile = await Profile.findOne({ login });
+      if (!profile) return socket.emit('authError', 'Неверный логин или пароль');
+      const valid = await bcrypt.compare(password, profile.passwordHash);
+      if (!valid) return socket.emit('authError', 'Неверный логин или пароль');
+      profile.token = generateToken();
+      profile.lastSeen = new Date();
+      await profile.save();
+      socket.userId = profile.id;
+      socket.emit('authSuccess', profile.toObject());
+      joinRoom(socket, 'general');
+    } catch (err) {
+      console.error('Ошибка входа:', err);
+      socket.emit('authError', 'Ошибка сервера');
+    }
   });
 
   // --- ВХОД ПО ТОКЕНУ ---
   socket.on('loginByToken', async (token) => {
-    const profile = await Profile.findOne({ token });
-    if (!profile) return socket.emit('tokenLoginResult', { success: false });
-    profile.lastSeen = new Date();
-    await profile.save();
-    socket.userId = profile.id;
-    socket.emit('tokenLoginResult', { success: true, profile: profile.toObject() });
-    joinRoom(socket, 'general');
+    try {
+      const profile = await Profile.findOne({ token });
+      if (!profile) return socket.emit('tokenLoginResult', { success: false });
+      profile.lastSeen = new Date();
+      await profile.save();
+      socket.userId = profile.id;
+      socket.emit('tokenLoginResult', { success: true, profile: profile.toObject() });
+      joinRoom(socket, 'general');
+    } catch (err) {
+      console.error('Ошибка входа по токену:', err);
+      socket.emit('tokenLoginResult', { success: false });
+    }
   });
 
   // --- ОБНОВЛЕНИЕ ПРОФИЛЯ ---
@@ -262,10 +277,8 @@ io.on('connection', (socket) => {
     joinRoom(socket, chatId);
   });
 
-  // --- ПРИСОЕДИНЕНИЕ К КОМНАТЕ ---
+  // --- JOIN / LEAVE ---
   socket.on('joinRoom', (roomId) => joinRoom(socket, roomId));
-
-  // --- ПОКИНУТЬ КОМНАТУ ---
   socket.on('leaveRoom', async (roomId) => {
     const userId = socket.userId;
     const room = await Room.findOne({ id: roomId });
@@ -276,17 +289,16 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('userLeft', userId);
   });
 
-  // --- ОТПРАВКА СООБЩЕНИЯ ---
+  // --- СООБЩЕНИЯ ---
   socket.on('chatMessage', async (data) => {
     const userId = socket.userId;
     const { roomId, text, replyTo } = data;
     if (!userId || !text) return;
-
     const profile = await Profile.findOne({ id: userId });
     const room = await Room.findOne({ id: roomId });
     if (!profile || !room) return;
 
-    // Блокировка в личных чатах
+    // Блокировка
     if (roomId.startsWith('private_')) {
       const ids = roomId.split('_').slice(1);
       const otherId = ids.find(id => id !== userId);
@@ -318,12 +330,11 @@ io.on('connection', (socket) => {
     room.messages.push(msg);
     if (room.messages.length > 500) room.messages = room.messages.slice(-500);
     await room.save();
-
     const savedMsg = room.messages[room.messages.length - 1];
     io.to(roomId).emit('newMessage', savedMsg.toObject());
   });
 
-  // --- РЕДАКТИРОВАНИЕ ---
+  // --- РЕДАКТИРОВАНИЕ / УДАЛЕНИЕ / РЕАКЦИИ ---
   socket.on('editMessage', async ({ roomId, messageId, newText }) => {
     const room = await Room.findOne({ id: roomId });
     if (!room) return;
@@ -335,7 +346,6 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('messageEdited', { messageId, newText });
   });
 
-  // --- УДАЛЕНИЕ ---
   socket.on('deleteMessage', async ({ roomId, messageId }) => {
     const room = await Room.findOne({ id: roomId });
     if (!room) return;
@@ -345,7 +355,6 @@ io.on('connection', (socket) => {
     io.to(roomId).emit('messageDeleted', messageId);
   });
 
-  // --- РЕАКЦИИ ---
   socket.on('addReaction', async ({ roomId, messageId, emoji }) => {
     const room = await Room.findOne({ id: roomId });
     if (!room) return;
@@ -362,7 +371,6 @@ io.on('connection', (socket) => {
 
   // --- ИНДИКАТОР ПЕЧАТИ ---
   socket.on('typing', ({ roomId }) => {
-    const profile = Profile.findOne ? null : null; // быстро найти ник
     Profile.findOne({ id: socket.userId }).then(profile => {
       if (profile) socket.to(roomId).emit('typing', { userId: socket.userId, nick: profile.nick });
     });
@@ -395,7 +403,7 @@ io.on('connection', (socket) => {
     joinRoom(socket, roomId);
   });
 
-  // --- ПОДПИСКА/ОТПИСКА ---
+  // --- ПОДПИСКА / БЛОКИРОВКА / ПРОФИЛЬ ---
   socket.on('subscribeRoom', async (roomId) => {
     const userId = socket.userId;
     const profile = await Profile.findOne({ id: userId });
@@ -403,7 +411,7 @@ io.on('connection', (socket) => {
     if (!profile.subscribedRooms.includes(roomId)) {
       profile.subscribedRooms.push(roomId);
       await profile.save();
-      const room = await Room.findOne({ id: roomId });
+      let room = await Room.findOne({ id: roomId });
       if (room && !room.participants.includes(userId)) {
         room.participants.push(userId);
         await room.save();
@@ -419,8 +427,6 @@ io.on('connection', (socket) => {
     await profile.save();
     socket.emit('unsubscribed', roomId);
   });
-
-  // --- БЛОКИРОВКА ---
   socket.on('blockUser', async (targetId) => {
     const userId = socket.userId;
     const profile = await Profile.findOne({ id: userId });
@@ -439,8 +445,6 @@ io.on('connection', (socket) => {
     await profile.save();
     socket.emit('userUnblocked', targetId);
   });
-
-  // --- ЗАПРОС ПРОФИЛЯ ---
   socket.on('getUserProfile', async (userId) => {
     const profile = await Profile.findOne({ id: userId });
     if (profile) {
@@ -530,7 +534,7 @@ async function handleCommand(room, userId, cmd, socket) {
   else {
     await sendSystem('Неизвестная команда. Доступны: /namechat, /op, /Whatid');
   }
-    }
+}
 
 // ========== ЗАПУСК ==========
 const PORT = process.env.PORT || 3000;
