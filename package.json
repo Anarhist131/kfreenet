@@ -1,16 +1,16 @@
 {
-  "name": "kfreenet",
-  "version": "2.0.0",
-  "description": "Мессенджер К.ФриРунет 2.0",
+  "name": "krista-messenger",
+  "version": "3.0.0",
+  "description": "Криста 3.0 — мессенджер с поддержкой токенов, редактирования, реакций и автовхода по токену",
   "main": "server.js",
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
-    "mongoose": "^7.0.0",
-    "express": "^4.18.2",
-    "socket.io": "^4.7.2",
     "bcryptjs": "^2.4.3",
-    "multer": "^1.4.5-lts.1"
+    "express": "^4.18.2",
+    "mongoose": "^7.0.0",
+    "multer": "^1.4.5-lts.1",
+    "socket.io": "^4.7.2"
   }
 }
