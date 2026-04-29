@@ -1,14 +1,13 @@
-// client.js — Криста 3.0 Мессенджер (полная логика)
-
+// client.js — Криста 3.0 (исправленная версия)
 const socket = io();
 
 // ================== ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ==================
-let currentUser = null;          // профиль пользователя
-let currentRoomId = 'general';   // активная комната
-let currentMessages = [];        // массив сообщений текущей комнаты
-let roomParticipants = [];       // участники текущей комнаты
+let currentUser = null;
+let currentRoomId = 'general';
+let currentMessages = [];
+let roomParticipants = [];
 let recentSearches = JSON.parse(localStorage.getItem('kfr_recentSearches') || '[]');
-let typingUsers = {};            // userId: { nick, timer }
+let typingUsers = {};
 let searchIndex = 0;
 let searchResults = [];
 
@@ -26,7 +25,6 @@ const tabLogin = document.getElementById('tabLogin');
 const tabRegister = document.getElementById('tabRegister');
 
 const messagesContainer = document.getElementById('messagesContainer');
-const chatHeader = document.getElementById('chatHeader');
 const chatTitle = document.getElementById('chatTitle');
 const chatIdDisplay = document.getElementById('chatIdDisplay');
 const messageInput = document.getElementById('messageInput');
@@ -40,15 +38,13 @@ const contextMenu = document.getElementById('contextMenu');
 const reactionPicker = document.getElementById('reactionPicker');
 
 // ================== АВТОРИЗАЦИЯ ==================
-let authMode = 'login'; // login | register
-
-// Проверка сохранённого токена
+let authMode = 'login';
 const savedToken = localStorage.getItem('kfr_token');
 if (savedToken) {
-  // Попробуем войти с токеном
+  authOverlay.classList.add('hidden');
+  mainApp.classList.remove('hidden');
   socket.emit('loginByToken', savedToken);
 } else {
-  // Иначе показываем форму
   authOverlay.classList.remove('hidden');
 }
 
@@ -73,7 +69,6 @@ authForm.addEventListener('submit', (e) => {
   const password = authPassword.value;
   const nick = authNick.value.trim();
   authError.textContent = '';
-
   if (authMode === 'register') {
     socket.emit('register', { login, password, nick });
   } else {
@@ -83,39 +78,30 @@ authForm.addEventListener('submit', (e) => {
 
 socket.on('authError', (msg) => {
   authError.textContent = msg;
+  authOverlay.classList.remove('hidden');
 });
 
 socket.on('authSuccess', (profile) => {
   currentUser = profile;
-  // Сохраняем токен в localStorage
   localStorage.setItem('kfr_token', profile.token);
-  // Скрываем авторизацию, показываем интерфейс
   authOverlay.classList.add('hidden');
   mainApp.classList.remove('hidden');
   applyUserSettings(profile);
   joinRoom('general');
 });
 
-// Обработка входа по токену
 socket.on('tokenLoginResult', (result) => {
   if (result.success) {
-    authSuccess(result.profile);
+    currentUser = result.profile;
+    applyUserSettings(result.profile);
+    joinRoom('general');
   } else {
     localStorage.removeItem('kfr_token');
     authOverlay.classList.remove('hidden');
   }
 });
 
-function authSuccess(profile) {
-  currentUser = profile;
-  localStorage.setItem('kfr_token', profile.token);
-  authOverlay.classList.add('hidden');
-  mainApp.classList.remove('hidden');
-  applyUserSettings(profile);
-  joinRoom('general');
-}
-
-// Применение настроек пользователя (тема, фон и т.д.)
+// ================== ПРИМЕНЕНИЕ НАСТРОЕК ==================
 function applyUserSettings(profile) {
   document.body.className = profile.theme === 'light' ? 'light' : '';
   document.getElementById('themeSelect').value = profile.theme;
@@ -136,7 +122,7 @@ function applyUserSettings(profile) {
   renderColorPalette(profile.color);
 }
 
-// ================== РАБОТА С КОМНАТАМИ ==================
+// ================== КОМНАТЫ ==================
 function joinRoom(roomId) {
   if (currentRoomId) socket.emit('leaveRoom', currentRoomId);
   currentRoomId = roomId;
@@ -144,8 +130,8 @@ function joinRoom(roomId) {
 }
 
 socket.on('roomInfo', (info) => {
-  currentMessages = info.messages;
-  roomParticipants = info.participants;
+  currentMessages = info.messages || [];
+  roomParticipants = info.participants || [];
   chatTitle.textContent = info.name;
   chatIdDisplay.textContent = `[${info.roomId}]`;
   renderMessages();
@@ -155,7 +141,7 @@ socket.on('roomInfo', (info) => {
 
 socket.on('userJoined', (user) => {
   if (!roomParticipants.find(p => p.id === user.id)) {
-    roomParticipants.push({...user, online: true});
+    roomParticipants.push({ ...user, online: true });
     renderParticipants();
   }
 });
@@ -199,13 +185,19 @@ socket.on('messageReaction', (data) => {
 });
 
 socket.on('typing', (data) => {
-  if (data.userId !== currentUser.id) {
-    showTypingIndicator(data.nick);
+  if (data.userId !== currentUser?.id) {
+    typingIndicator.textContent = `${data.nick} печатает...`;
+    typingIndicator.classList.remove('hidden');
+    clearTimeout(typingUsers[data.userId]);
+    typingUsers[data.userId] = setTimeout(() => {
+      typingIndicator.classList.add('hidden');
+    }, 3000);
   }
 });
 
 socket.on('stopTyping', (data) => {
-  hideTypingIndicator(data.userId);
+  clearTimeout(typingUsers[data.userId]);
+  typingIndicator.classList.add('hidden');
 });
 
 socket.on('roomNameChanged', (newName) => {
@@ -215,6 +207,10 @@ socket.on('roomNameChanged', (newName) => {
 // ================== ОТРИСОВКА СООБЩЕНИЙ ==================
 function renderMessages() {
   messagesContainer.innerHTML = '';
+  if (!currentMessages.length) {
+    messagesContainer.innerHTML = '<div style="color:#888; text-align:center; padding:20px;">Нет сообщений</div>';
+    return;
+  }
   currentMessages.forEach(msg => appendMessage(msg));
   messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
@@ -241,7 +237,7 @@ function appendMessage(msg) {
       html += `<div class="reply-preview">↪ ${replyMsg.user}: ${replyMsg.text.substring(0, 30)}</div>`;
     }
   }
-  html += `<span class="text">${msg.text}${msg.edited ? ' (ред.)' : ''}</span>`;
+  html += `<span class="text">${escapeHTML(msg.text)}${msg.edited ? ' (ред.)' : ''}</span>`;
 
   if (msg.reactions) {
     html += '<div class="reactions">';
@@ -253,19 +249,23 @@ function appendMessage(msg) {
 
   div.innerHTML = html;
 
-  // Контекстное меню по нажатию на сообщение
   div.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     showContextMenu(e.clientX, e.clientY, msg);
   });
 
-  // Клик по нику — показать профиль
   const userSpan = div.querySelector('.user');
   if (userSpan && msg.userId) {
     userSpan.addEventListener('click', () => showProfile(msg.userId));
   }
 
   messagesContainer.appendChild(div);
+}
+
+function escapeHTML(str) {
+  const div = document.createElement('div');
+  div.appendChild(document.createTextNode(str));
+  return div.innerHTML;
 }
 
 // ================== КОНТЕКСТНОЕ МЕНЮ ==================
@@ -283,9 +283,7 @@ document.addEventListener('click', (e) => {
 });
 
 contextMenu.querySelector('[data-action="reply"]').addEventListener('click', () => {
-  if (selectedMessage) {
-    startReply(selectedMessage);
-  }
+  if (selectedMessage) startReply(selectedMessage);
   contextMenu.classList.add('hidden');
 });
 
@@ -313,16 +311,12 @@ contextMenu.querySelector('[data-action="delete"]').addEventListener('click', ()
 });
 
 contextMenu.querySelector('[data-action="react"]').addEventListener('click', () => {
-  if (selectedMessage) {
-    showReactionPicker(contextMenu.offsetLeft, contextMenu.offsetTop - 50);
-  }
+  if (selectedMessage) showReactionPicker(contextMenu.offsetLeft, contextMenu.offsetTop - 50);
   contextMenu.classList.add('hidden');
 });
 
 contextMenu.querySelector('[data-action="copy"]').addEventListener('click', () => {
-  if (selectedMessage) {
-    navigator.clipboard.writeText(selectedMessage.text);
-  }
+  if (selectedMessage) navigator.clipboard.writeText(selectedMessage.text);
   contextMenu.classList.add('hidden');
 });
 
@@ -361,7 +355,6 @@ function sendMessage() {
   }
   socket.emit('chatMessage', data);
   messageInput.value = '';
-  // Останавливаем индикатор печати
   socket.emit('stopTyping', { roomId: currentRoomId });
 }
 
@@ -370,7 +363,6 @@ messageInput.addEventListener('keypress', (e) => {
   if (e.key === 'Enter') sendMessage();
 });
 
-// Индикатор печати
 messageInput.addEventListener('input', () => {
   if (messageInput.value.trim() !== '') {
     socket.emit('typing', { roomId: currentRoomId });
@@ -379,26 +371,12 @@ messageInput.addEventListener('input', () => {
   }
 });
 
-function showTypingIndicator(nick) {
-  typingIndicator.textContent = `${nick} печатает...`;
-  typingIndicator.classList.remove('hidden');
-  clearTimeout(typingUsers[nick]);
-  typingUsers[nick] = setTimeout(() => hideTypingIndicator(nick), 3000);
-}
-
-function hideTypingIndicator(userId) {
-  // удаляем всех таймеров и скрываем, если никого нет
-  typingIndicator.classList.add('hidden');
-}
-
 // ================== ЭМОДЗИ ==================
 const emojis = ['😀','😂','😍','🥰','😎','🤔','👍','❤️','🔥','🎉','👋','😢','😡','😱','🤗','🙏'];
 emojiPicker.innerHTML = emojis.map(e => `<span>${e}</span>`).join('');
-
 document.getElementById('emojiBtn').addEventListener('click', () => {
   emojiPicker.classList.toggle('hidden');
 });
-
 emojiPicker.addEventListener('click', (e) => {
   if (e.target.tagName === 'SPAN') {
     messageInput.value += e.target.textContent;
@@ -408,41 +386,34 @@ emojiPicker.addEventListener('click', (e) => {
 });
 
 // ================== ПОИСК ==================
-document.getElementById('btnSearchToggle')?.addEventListener('click', () => {
+document.getElementById('btnSearchToggle').addEventListener('click', () => {
   searchBar.classList.toggle('hidden');
+  searchInput.focus();
 });
-
 searchInput.addEventListener('input', () => {
   const query = searchInput.value.trim().toLowerCase();
   searchResults = currentMessages.filter(m => m.text.toLowerCase().includes(query));
   searchIndex = 0;
-  if (searchResults.length > 0) {
-    highlightMessage(searchResults[0]);
-  }
+  if (searchResults.length > 0) highlightMessage(searchResults[0]);
 });
-
 function highlightMessage(msg) {
-  const elements = document.querySelectorAll('.message');
-  elements.forEach(el => el.style.background = '');
-  const el = [...elements].find(el => el.dataset.messageId === msg._id);
+  document.querySelectorAll('.message').forEach(el => el.style.background = '');
+  const el = [...document.querySelectorAll('.message')].find(el => el.dataset.messageId === msg._id);
   if (el) {
     el.style.background = 'rgba(122,162,247,0.3)';
     el.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 }
-
 document.getElementById('searchPrev').addEventListener('click', () => {
   if (searchResults.length === 0) return;
   searchIndex = (searchIndex - 1 + searchResults.length) % searchResults.length;
   highlightMessage(searchResults[searchIndex]);
 });
-
 document.getElementById('searchNext').addEventListener('click', () => {
   if (searchResults.length === 0) return;
   searchIndex = (searchIndex + 1) % searchResults.length;
   highlightMessage(searchResults[searchIndex]);
 });
-
 document.getElementById('closeSearch').addEventListener('click', () => {
   searchBar.classList.add('hidden');
   searchInput.value = '';
@@ -536,7 +507,6 @@ document.getElementById('btnList').addEventListener('click', () => {
   renderChatList();
 });
 
-// Закрытие модалок
 document.querySelectorAll('.modal-close').forEach(btn => {
   btn.addEventListener('click', () => {
     const modal = document.getElementById(btn.dataset.modal);
@@ -547,7 +517,7 @@ window.addEventListener('click', (e) => {
   if (e.target.classList.contains('modal')) e.target.classList.add('hidden');
 });
 
-// ================== СКАЧИВАНИЕ В TXT (UTF-8 BOM) ==================
+// ================== СКАЧИВАНИЕ TXT ==================
 function downloadChat() {
   if (!currentMessages.length) return alert('Нет сообщений');
   const BOM = '\uFEFF';
@@ -579,7 +549,6 @@ function renderRecentSearches() {
 }
 
 function renderChatList() {
-  // Заполнение списков из currentUser.subscribedRooms и recentSearches
   const roomsList = document.getElementById('roomsList');
   const contactsList = document.getElementById('contactsList');
   roomsList.innerHTML = '';
@@ -606,7 +575,6 @@ function renderChatList() {
   });
 }
 
-// Кнопки внутри модалок
 document.getElementById('btnCreateRoomSubmit').addEventListener('click', () => {
   const name = document.getElementById('inputRoomName').value.trim();
   if (!name) return alert('Введите название');
@@ -621,7 +589,6 @@ document.getElementById('btnFindSubmit').addEventListener('click', () => {
   } else {
     socket.emit('startPrivateChat', id);
   }
-  // Добавляем в историю
   recentSearches.unshift({ id, name: id });
   if (recentSearches.length > 15) recentSearches.pop();
   localStorage.setItem('kfr_recentSearches', JSON.stringify(recentSearches));
@@ -630,6 +597,7 @@ document.getElementById('btnFindSubmit').addEventListener('click', () => {
 
 // ================== НАСТРОЙКИ ==================
 const defaultColors = ['#7aa2f7','#f7768e','#9ece6a','#ff9e64','#bb9af7','#2ac3de','#e0af68','#f1fa8c'];
+let selectedColor = currentUser?.color || '#7aa2f7';
 function renderColorPalette(currentColor) {
   const palette = document.getElementById('colorPalette');
   palette.innerHTML = '';
@@ -647,8 +615,6 @@ function renderColorPalette(currentColor) {
   selectedColor = currentColor;
 }
 
-let selectedColor = currentUser?.color || '#7aa2f7';
-
 document.getElementById('btnSaveProfile').addEventListener('click', () => {
   const nick = document.getElementById('inputNickname').value.trim();
   const description = document.getElementById('inputDescription').value.trim();
@@ -658,7 +624,6 @@ document.getElementById('btnSaveProfile').addEventListener('click', () => {
   document.getElementById('modalSettings').classList.add('hidden');
 });
 
-// Загрузка аватара
 document.getElementById('avatarFile').addEventListener('change', async () => {
   const file = avatarFile.files[0];
   if (!file) return;
@@ -672,7 +637,6 @@ document.getElementById('avatarFile').addEventListener('change', async () => {
     document.getElementById('avatarPreview').src = '/avatars/' + data.avatar;
   }
 });
-// Загрузка фона
 document.getElementById('bgFile').addEventListener('change', async () => {
   const file = bgFile.files[0];
   if (!file) return;
